@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Supabase CAD Viewer</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    input[type="text"] { padding: 5px; margin: 5px; }
+    button { padding: 6px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Supabase CAD Table</h1>
+
+  <form id="entryForm">
+    <div id="formFields"></div>
+    <button type="submit">Submit</button>
+  </form>
+
+  <table id="dataTable">
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <script>
+    async function loadData() {
+      const res = await fetch('/data');
+      const data = await res.json();
+
+      if (!Array.isArray(data)) {
+        document.getElementById("dataTable").innerText = "Error loading data";
+        return;
+      }
+
+      const tableHead = document.getElementById("tableHead");
+      const tableBody = document.getElementById("tableBody");
+      const formFields = document.getElementById("formFields");
+
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+      formFields.innerHTML = "";
+
+      if (data.length === 0) {
+        tableBody.innerHTML = "<tr><td colspan='100%'>No data available</td></tr>";
+        return;
+      }
+
+      const headers = Object.keys(data[0]);
+      const autoFields = ['id', 'created_at'];
+      const formHeaders = headers.filter(h => !autoFields.includes(h));
+
+      // Build table header
+      const headerRow = document.createElement("tr");
+      headers.forEach(h => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        headerRow.appendChild(th);
+      });
+      tableHead.appendChild(headerRow);
+
+      // Build table body
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        headers.forEach(h => {
+          const td = document.createElement("td");
+          td.textContent = row[h];
+          tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+      });
+
+      // Build form
+      formHeaders.forEach(h => {
+        const label = document.createElement("label");
+        label.textContent = h + ": ";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = h;
+        input.required = true;
+        formFields.appendChild(label);
+        formFields.appendChild(input);
+      });
+    }
+
+    document.getElementById("entryForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const data = {};
+
+      for (let input of form.querySelectorAll("input")) {
+        data[input.name] = input.value.trim();
+      }
+
+      const res = await fetch("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        alert("Record added!");
+        form.reset();
+        loadData();
+      } else {
+        alert("Error: " + (result.error || "Unknown"));
+      }
+    });
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
