@@ -7,108 +7,99 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 0;
-      background-image: url('{{ url_for("static", filename="background.jpg") }}');
-      background-size: cover;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
-      background-position: center;
+      margin: 20px;
     }
-    .overlay {
-      background-color: rgba(255, 255, 255, 0.92);
-      padding: 30px;
-      max-width: 1000px;
-      margin: 30px auto;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    }
-    input, select, button {
-      padding: 6px 10px;
-      margin: 5px;
-      font-size: 14px;
-    }
+
     .form-entry, .controls {
       margin-bottom: 15px;
     }
+
+    input, select, button {
+      padding: 6px 10px;
+      margin-right: 10px;
+      font-size: 14px;
+    }
+
     .table-container {
       max-height: 500px;
       overflow-y: auto;
       border: 1px solid #ccc;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
     }
+
     th, td {
       padding: 8px 12px;
       border: 1px solid #ccc;
       text-align: left;
       white-space: nowrap;
     }
+
     thead th {
       position: sticky;
       top: 0;
       background-color: #f1f1f1;
       z-index: 2;
     }
+
     tbody tr:nth-child(even) {
       background-color: #fafafa;
     }
-    .success { color: green; }
-    .error { color: red; }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+
     .summary {
       font-size: 16px;
       margin-bottom: 10px;
       font-weight: bold;
     }
-    .logo {
-      display: block;
-      margin: 0 auto 20px auto;
-      height: 80px;
-    }
-    h2 {
-      text-align: center;
-    }
-    #entryForm {
-      display: none;
-    }
   </style>
 </head>
 <body>
-  <div class="overlay">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Company Logo" class="logo" />
-    <h2>Employee Financial Records</h2>
+  <h2>Employee Financial Records</h2>
 
-    <div class="summary" id="totalSummary"></div>
-    <button onclick="toggleEntryForm()">➕ Data Entry</button>
+  <!-- 💰 Total Summary -->
+  <div class="summary" id="totalSummary"></div>
 
-    <div class="form-entry" id="entryForm">
-      <input type="text" id="inputName" placeholder="Name" required />
-      <input type="text" id="inputDepartment" placeholder="Department" required />
-      <input type="number" id="inputAmount" placeholder="Amount" step="0.01" required />
-      <button onclick="submitEntry()">Submit</button>
-      <span id="message"></span>
-    </div>
+  <!-- 🚀 Data Entry Form -->
+  <div class="form-entry">
+    <input type="text" id="inputName" placeholder="Name" required />
+    <input type="text" id="inputDepartment" placeholder="Department" required />
+    <input type="number" id="inputAmount" placeholder="Amount" step="0.01" required />
+    <button onclick="submitEntry()">Submit</button>
+    <span id="message"></span>
+  </div>
 
-    <div class="controls">
-      <label for="nameSelect">Select Name:</label>
-      <select id="nameSelect" onchange="filterByName()">
-        <option value="">-- All --</option>
-      </select>
-      <button onclick="renderTable(originalData); showTotalSummary(originalData)">Reset Table</button>
-      <button onclick="downloadExcel()">Download Excel</button>
-    </div>
+  <!-- 🔍 Filter / Actions -->
+  <div class="controls">
+    <label for="nameSelect">Select Name:</label>
+    <select id="nameSelect">
+      <option value="">-- All --</option>
+    </select>
+    <button onclick="calculateSelectedName()">Show Total per Name</button>
+    <button onclick="renderTable(originalData); showTotalSummary(originalData)">Reset Table</button>
+    <button onclick="downloadExcel()">Download Excel</button>
+  </div>
 
-    <div class="table-container">
-      <table id="data-table">
-        <thead><tr id="table-header"></tr></thead>
-        <tbody id="table-body"></tbody>
-      </table>
-    </div>
+  <!-- 📊 Table View -->
+  <div class="table-container">
+    <table id="data-table">
+      <thead><tr id="table-header"></tr></thead>
+      <tbody id="table-body"></tbody>
+    </table>
   </div>
 
   <script>
-    const visibleColumns = ["name", "department", "amount"];
+    const visibleColumns = ["Name", "Department", "Amount"];
     let originalData = [];
 
     fetch("/data")
@@ -118,22 +109,27 @@
         renderTable(data);
         populateNameDropdown(data);
         showTotalSummary(data);
+      })
+      .catch(err => {
+        console.error("Failed to fetch data:", err);
+        document.getElementById("data-table").innerHTML = "<p>Error loading data.</p>";
       });
 
     function renderTable(data, columns = visibleColumns) {
       const headerRow = document.getElementById("table-header");
       const body = document.getElementById("table-body");
+
       headerRow.innerHTML = "";
       body.innerHTML = "";
 
-      if (!data.length) {
+      if (!data || data.length === 0) {
         headerRow.innerHTML = "<th>No Data</th>";
         return;
       }
 
       columns.forEach(key => {
         const th = document.createElement("th");
-        th.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+        th.textContent = key;
         headerRow.appendChild(th);
       });
 
@@ -150,7 +146,7 @@
 
     function populateNameDropdown(data) {
       const nameSelect = document.getElementById("nameSelect");
-      const names = [...new Set(data.map(row => row.name).filter(Boolean))];
+      const names = [...new Set(data.map(row => row.name || row.Name).filter(Boolean))];
       nameSelect.innerHTML = '<option value="">-- All --</option>';
       names.forEach(name => {
         const option = document.createElement("option");
@@ -160,39 +156,30 @@
       });
     }
 
-    function filterByName() {
+    function calculateSelectedName() {
       const selected = document.getElementById("nameSelect").value;
-      const filtered = selected
-        ? originalData.filter(row => row.name === selected)
-        : originalData;
-      renderTable(filtered);
-      showTotalSummary(filtered);
+      if (!selected) {
+        renderTable(originalData);
+        showTotalSummary(originalData);
+        return;
+      }
+
+      const filtered = originalData.filter(row => (row.name || row.Name) === selected);
+      const total = filtered.reduce((sum, row) => sum + (parseFloat(row.amount || row.Amount) || 0), 0);
+
+      renderTable([{ name: selected, total_amount: total.toFixed(2) }], ["name", "total_amount"]);
+      document.getElementById("totalSummary").textContent = `Total Amount for ${selected}: ₱${total.toFixed(2)}`;
     }
 
     function showTotalSummary(data) {
-      const total = data.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
-      document.getElementById("totalSummary").textContent = `Total Amount: ₱${total.toFixed(2)}`;
+      const total = data.reduce((sum, row) => sum + (parseFloat(row.amount || row.Amount) || 0), 0);
+      document.getElementById("totalSummary").textContent = `Overall Total Amount: ₱${total.toFixed(2)}`;
     }
 
     function downloadExcel() {
       const table = document.getElementById("data-table");
       const wb = XLSX.utils.table_to_book(table, { sheet: "Records" });
       XLSX.writeFile(wb, "employee_financial_records.xlsx");
-    }
-
-    function toggleEntryForm() {
-      const form = document.getElementById("entryForm");
-      if (form.style.display === "block") {
-        form.style.display = "none";
-        return;
-      }
-
-      const password = prompt("Enter password to access data entry:");
-      if (password === "admin123") {
-        form.style.display = "block";
-      } else {
-        alert("❌ Incorrect password. Access denied.");
-      }
     }
 
     function submitEntry() {
@@ -210,7 +197,7 @@
       fetch("/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, department: dept, amount })
+        body: JSON.stringify({ Name: name, Department: dept, Amount: amount })
       })
       .then(res => res.json())
       .then(response => {
@@ -221,7 +208,7 @@
           document.getElementById("inputDepartment").value = "";
           document.getElementById("inputAmount").value = "";
 
-          originalData.push({ name, department: dept, amount });
+          originalData.push({ Name: name, Department: dept, Amount: amount });
           renderTable(originalData);
           populateNameDropdown(originalData);
           showTotalSummary(originalData);

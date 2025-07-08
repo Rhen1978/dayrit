@@ -1,19 +1,30 @@
 from flask import Flask, render_template, request, jsonify
-from supabase import create_client
 from flask_cors import CORS
-from dotenv import load_dotenv
+import sqlite3
 import os
-
-load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+DB_PATH = 'localdata.db'
 
-AUTO_FIELDS = ['id', 'created_at']
+# Initialize database and table
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cad (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            department TEXT,
+            amount REAL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
 
 @app.route('/')
 def index():
@@ -22,8 +33,14 @@ def index():
 @app.route('/data', methods=['GET'])
 def get_data():
     try:
-        response = supabase.table("cad").select("*").order("id", desc=False).execute()
-        return jsonify(response.data)
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM cad ORDER BY id ASC")
+        rows = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+        data = [dict(zip(columns, row)) for row in rows]
+        conn.close()
+        return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -34,10 +51,30 @@ def submit():
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        response = supabase.table("cad").insert(data).execute()
-        return jsonify({"success": True, "data": response.data})
+        name = data.get("name")
+        department = data.get("department")
+        amount = data.get("amount")
+
+        if not name or not department or amount is None:
+            return jsonify({"error": "All fields are required"}), 400
+
+        try:
+            amount = float(amount)
+        except ValueError:
+            return jsonify({"error": "Amount must be a number"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO cad (name, department, amount) VALUES (?, ?, ?)",
+            (name, department, amount)
+        )
+        conn.commit()
+        conn.close()
+
+        return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
